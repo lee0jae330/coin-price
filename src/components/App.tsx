@@ -1,62 +1,61 @@
 import { useEffect, useState } from "react";
-
-type CoinData = {
-  id: string;
-  name: string;
-  symbol: string;
-  rank: number;
-  total_supply: number;
-  max_supply: number;
-  beta_value: number;
-  first_data_at: string;
-  last_updated: string;
-  quotes: {
-    KRW: {
-      price: number;
-      volume_24h: number;
-      volume_24h_change_24h: number;
-      market_cap: number;
-      market_cap_change_24h: number;
-      percent_change_15m: number;
-      percent_change_30m: number;
-      percent_change_1h: number;
-      percent_change_6h: number;
-      percent_change_12h: number;
-      percent_change_24h: number;
-      percent_change_7d: number;
-      percent_change_30d: number;
-      percent_change_1y: number;
-      ath_price: number;
-      ath_date: string;
-      percent_from_price_ath: number;
-    };
-  };
-};
+import type { CoinData } from "../types";
+import { CurrentSelector } from "./CurrentSelector";
+import { CoinInfo } from "./CoinInfo";
+import { PageSelectButton } from "./PageSelectButton";
 
 export const App = () => {
-  const [coinList, setCoinList] = useState<CoinData[]>([]);
+  const [krwCoinList, setKrwCoinList] = useState<CoinData[]>([]);
+  const [usdCoinList, setUsdCoinList] = useState<CoinData[]>([]);
+  const [isInitial, setIsInitial] = useState<boolean>(false);
+  const [page, setPage] = useState<number>(1);
+  const [priceFilter, setPriceFilter] = useState<"KRW" | "USD">("KRW");
+
   useEffect(() => {
     const fetchCoinData = async () => {
-      const response = await fetch(
-        "https://api.coinpaprika.com/v1/tickers?quotes=KRW"
-      );
+      const [krwResponse, usdResponse] = await Promise.all([
+        fetch(`https://api.coinpaprika.com/v1/tickers?quotes=KRW`),
+        fetch(`https://api.coinpaprika.com/v1/tickers?quotes=USD`),
+      ]);
 
-      const data: CoinData[] = await response.json();
-      setCoinList(data);
+      const krwData: CoinData[] = await krwResponse.json();
+      const usdData: CoinData[] = await usdResponse.json();
+      setKrwCoinList(krwData);
+      setUsdCoinList(usdData);
+      setIsInitial(true);
     };
-    const interval = setInterval(fetchCoinData, 5000);
-    return () => clearInterval(interval);
+    fetchCoinData();
   }, []);
 
+  const coinList = priceFilter === "KRW" ? krwCoinList : usdCoinList;
+
+  if (!isInitial) {
+    return <div>Loading...</div>;
+  }
+
   return (
-    <>
-      {coinList.slice(0, 10).map((coin) => (
-        <div key={coin.id}>
-          <h2>{coin.name}</h2>
-          <p>{coin.symbol}</p>
-          <p>{coin.quotes.KRW.price}</p>
-        </div>
-      ))}
-    </>
+    <div
+      style={{
+        padding: "2rem",
+        display: "flex",
+        flexDirection: "column",
+        gap: "2rem",
+      }}
+    >
+      <CurrentSelector onChange={setPriceFilter} />
+      <ul>
+        {coinList.slice((page - 1) * 10, page * 10).map((coin) => (
+          <CoinInfo key={coin.id} coin={coin} priceFilter={priceFilter} />
+        ))}
+      </ul>
+
+      <div style={{ display: "flex", gap: "1rem" }}>
+        {Array.from({
+          length: Math.min(Math.ceil(coinList.length / 10), 10),
+        }).map((_, index) => (
+          <PageSelectButton key={index} page={index + 1} onClick={setPage} />
+        ))}
+      </div>
+    </div>
   );
 };
